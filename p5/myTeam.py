@@ -90,6 +90,24 @@ class ReflexCaptureAgent(CaptureAgent):
   """
   A base class for reflex agents that chooses score-maximizing actions
   """
+  def registerInitialState(self, gameState):
+    """
+    This method handles the initial setup of the
+    agent to populate useful fields (such as what team
+    we're on). 
+    """
+    CaptureAgent.registerInitialState(self, gameState)
+    ''' 
+    Your initialization code goes here, if you need any.
+    '''
+    # initializes opponents to track 
+    # NOTE: 2 particle filters are being used for each agent
+    self.opponents = self.getOpponents(gameState)
+    self.filters = util.Counter()
+    for opponent in self.opponents:
+        self.filters[opponent] = ParticleFilter(opponent)
+        self.filters[opponent].initialize(gameState)
+
   def chooseAction(self, gameState):
     """
     Picks among the actions with the highest Q(s,a).
@@ -103,6 +121,9 @@ class ReflexCaptureAgent(CaptureAgent):
 
     maxValue = max(values)
     bestActions = [a for a, v in zip(actions, values) if v == maxValue]
+
+    # Update Particle Filters
+    self.updateFilters(gameState)
 
     return random.choice(bestActions)
 
@@ -141,6 +162,51 @@ class ReflexCaptureAgent(CaptureAgent):
     a counter or a dictionary.
     """
     return {'successorScore': 1.0}
+
+  def updateFilters(self, gameState):
+    """
+    Updates this agents particle filters for each corresponding 
+    opponent agent.
+    """
+    # TODO:
+    # if a ghost is kill, initialize filter uniformily
+    '''
+    if self.getPreviousObservation() != None and gameState.getScore() != self.getPreviousObservation().getScore():
+        for opponent in self.opponents:
+            self.filters[opponent].initializeUniformly(gameState)
+    '''
+    # perform particle filtering step
+    # may need to be moved
+    if self.index == 1:
+        print gameState, 'score', gameState.getScore(), gameState.data.score, gameState.data.scoreChange
+
+    print gameState.getRedTeamIndices()
+    
+    # stall the game
+    for i in range(10000000):
+        pass
+
+    positions = list()
+    noisyDistances = gameState.getAgentDistances()
+    if self.index == 1: self.debugClear()
+    #print noisyDistances
+    for opponent in self.opponents:
+        print 'opponent: ', opponent, 'noise:', noisyDistances[opponent]
+        self.filters[opponent].observe(noisyDistances[opponent], gameState, self.distancer, self.index)
+        self.filters[opponent].elapseTime(gameState, self.index)
+        for key, value in self.filters[opponent].getBeliefDistribution().items():
+            if value > 0:
+                #positions.append(key)
+                #print key, value
+                if opponent == 0:
+                    positions.append(key)
+                    #self.debugDraw(key, [0.5,0,0])
+                else:
+                    pass
+                    #self.debugDraw(key, [0,0.5,0])
+        #positions.append(self.filters[opponent].getBeliefDistribution().argMax())
+    # particle filtering debug
+    self.debugDraw(positions, [0.5,0,0], True);
 
 class OffensiveReflexAgent(ReflexCaptureAgent):
   """
@@ -200,3 +266,147 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
   def getWeights(self, gameState, action):
     return {'numInvaders': -1000, 'onDefense': 100, 'invaderDistance': -10, 'stop': -100, 'reverse': -2}
 
+##################
+# InferenceModules
+##################
+
+class InferenceModule:
+  """
+  An inference module tracks a belief distribution over a ghost's location.
+  This is an abstract class, which you should not modify.
+  """
+  
+  def __init__(self, agentIndex):
+    "Sets the ghost agent for later access"
+    self.index = agentIndex
+    
+  def getPositionDistribution(self, gameState):
+    """
+    Returns a distribution over successor positions of the ghost from the given gameState. 
+    You must first place the ghost in the gameState, using setGhostPosition below.
+
+    NOTE:
+    We do not know how the enemy agents will act so we say that the agent will move to any
+    neighboring position with equal probability.
+    """
+    ghostPosition = gameState.getAgentPosition(self.index)
+    actionDist = util.Counter()
+    for a in gameState.getLegalActions( self.index ):
+        actionDist[a] = 1.0
+    actionDist.normalize()
+    dist = util.Counter()
+    for action, prob in actionDist.items():
+      successorPosition = game.Actions.getSuccessor(ghostPosition, action)
+      dist[successorPosition] = prob
+    return dist
+
+  def getPositionDist(self, gameState, ghostPosition):
+    """
+    Returns a distribution over successor positions of the ghost from the given gameState. 
+    You must first place the ghost in the gameState, using setGhostPosition below.
+
+    NOTE:
+    We do not know how the enemy agents will act so we say that the agent will move to any
+    neighboring position with equal probability.
+    """
+    actionDist = util.Counter()
+    for a in ['North', 'South', 'East', 'West', 'Stop']:
+        actionDist[a] = 1.0
+    actionDist.normalize()
+    dist = util.Counter()
+    for action, prob in actionDist.items():
+      successorPosition = game.Actions.getSuccessor(ghostPosition, action)
+      dist[successorPosition] = prob
+    return dist
+  
+  def setGhostPosition(self, gameState, ghostPosition):
+    """
+    Sets the position of the ghost for this inference module to the specified
+    position in the supplied gameState.
+    """
+    conf = game.Configuration(ghostPosition, game.Directions.STOP)
+    gameState.data.agentStates[self.index] = game.AgentState(conf, False)
+    return gameState
+      
+  def initialize(self, gameState):
+    "Initializes beliefs to a uniform distribution over all positions."
+    # The legal positions do not include the ghost prison cells in the bottom left.
+    self.legalPositions = [p for p in gameState.getWalls().asList(False)]
+    self.initializeUniformly(gameState)
+    
+  # Methods that need to be overridden #
+  def initializeUniformly(self, gameState):
+    "Sets the belief state to a uniform prior belief over all positions."
+    pass
+  
+  def observe(self, observation, gameState):
+    "Updates beliefs based on the given distance observation and gameState."
+    pass
+  
+  def elapseTime(self, gameState):
+    "Updates beliefs for a time step elapsing from a gameState."
+    pass
+    
+  def getBeliefDistribution(self):
+    """
+    Returns the agent's current belief state, a distribution over
+    ghost locations conditioned on all evidence so far.
+    """
+    pass
+
+
+class ParticleFilter(InferenceModule):
+  """
+  A particle filter for approximately tracking a single ghost.
+  
+  Useful helper functions will include random.choice, which chooses
+  an element from a list uniformly at random, and util.sample, which
+  samples a key from a Counter by treating its values as probabilities.
+  """
+  
+  def initializeUniformly(self, gameState, numParticles=300):
+    "Initializes a list of particles."
+    self.numParticles = numParticles
+    self.particles = util.Counter()
+    for i in range(self.numParticles):
+        position = random.choice(self.legalPositions)
+        self.particles[position] += 1.0        
+  
+  def observe(self, observation, gameState, distancer, pacmanIndex):
+    "Update beliefs based on the given distance observation."
+    pacmanPosition = gameState.getAgentPosition(pacmanIndex)
+    allPossible = util.Counter()
+    for pos in self.legalPositions:
+        trueDistance = util.manhattanDistance(pacmanPosition, pos) # NOTE: should different method be used?
+        #trueDistance1 = distancer.getDistance(pacmanPosition, pos)
+        #print 'true', trueDistance, trueDistance1
+        allPossible[pos] = gameState.getDistanceProb(trueDistance, observation) * self.particles[pos]
+    allPossible.normalize()
+    self.particles = allPossible
+    
+  def elapseTime(self, gameState, pacmanIndex):
+    """
+    Update beliefs for a time step elapsing.
+    
+    As in the elapseTime method of ExactInference, you should use:
+
+      newPosDist = self.getPositionDistribution(self.setGhostPosition(gameState, oldPos))
+
+    to obtain the distribution over new positions for the ghost, given
+    its previous position (oldPos) as well as Pacman's current
+    position.
+    """
+    allPossible = util.Counter()
+    for oldPos in self.legalPositions:
+        newPosDist = self.getPositionDistribution(self.setGhostPosition(gameState, oldPos))
+        for newPos in newPosDist:
+            allPossible[newPos] += newPosDist[newPos] * self.particles[oldPos]
+    allPossible.normalize()
+    self.particles = allPossible
+
+  def getBeliefDistribution(self):
+    """
+    Return the agent's current belief state, a distribution over
+    ghost locations conditioned on all evidence and time passage.
+    """
+    return self.particles
