@@ -177,21 +177,19 @@ class ReflexCaptureAgent(CaptureAgent):
     '''
     # perform particle filtering step
     # may need to be moved
-    if self.index == 1:
-        print gameState, 'score', gameState.getScore(), gameState.data.score, gameState.data.scoreChange
+    #if self.index == 1:
+        #print gameState, 'score', gameState.getScore(), gameState.data.score, gameState.data.scoreChange
 
-    print gameState.getRedTeamIndices()
-    
     # stall the game
-    for i in range(10000000):
-        pass
+    #for i in range(10000000):
+        #pass
 
     positions = list()
     noisyDistances = gameState.getAgentDistances()
     if self.index == 1: self.debugClear()
     #print noisyDistances
     for opponent in self.opponents:
-        print 'opponent: ', opponent, 'noise:', noisyDistances[opponent]
+        #print 'opponent: ', opponent, 'noise:', noisyDistances[opponent]
         self.filters[opponent].observe(noisyDistances[opponent], gameState, self.distancer, self.index)
         self.filters[opponent].elapseTime(gameState, self.index)
         for key, value in self.filters[opponent].getBeliefDistribution().items():
@@ -200,13 +198,12 @@ class ReflexCaptureAgent(CaptureAgent):
                 #print key, value
                 if opponent == 0:
                     positions.append(key)
-                    #self.debugDraw(key, [0.5,0,0])
+                    self.debugDraw(key, [0.5,0,0])
                 else:
-                    pass
-                    #self.debugDraw(key, [0,0.5,0])
+                    self.debugDraw(key, [0,0.5,0])
         #positions.append(self.filters[opponent].getBeliefDistribution().argMax())
     # particle filtering debug
-    self.debugDraw(positions, [0.5,0,0], True);
+    #self.debugDraw(positions, [0.5,0,0], True);
 
 class OffensiveReflexAgent(ReflexCaptureAgent):
   """
