@@ -105,8 +105,7 @@ class ReflexCaptureAgent(CaptureAgent):
     self.opponents = self.getOpponents(gameState)
     self.filters = util.Counter()
     for opponent in self.opponents:
-        self.filters[opponent] = ParticleFilter(opponent)
-        self.filters[opponent].initialize(gameState)
+        self.filters[opponent] = createParticleFilter(opponent, gameState)
 
   def chooseAction(self, gameState):
     """
@@ -407,3 +406,17 @@ class ParticleFilter(InferenceModule):
     ghost locations conditioned on all evidence and time passage.
     """
     return self.particles
+
+
+# Create a global particle filter that agents can share and update together
+particleFilters = util.Counter()
+
+def createParticleFilter(opponentIndex, gameState):
+    """
+    Creates a new particle filter if one does not already exist for 
+    designated oppponentIndex.
+    """
+    if particleFilters[opponentIndex] == 0:
+        particleFilters[opponentIndex] = ParticleFilter(opponentIndex)
+        particleFilters[opponentIndex].initialize(gameState)
+    return particleFilters[opponentIndex]
