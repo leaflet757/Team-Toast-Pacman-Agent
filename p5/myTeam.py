@@ -106,6 +106,9 @@ class ReflexCaptureAgent(CaptureAgent):
     self.filters = util.Counter()
     for opponent in self.opponents:
         self.filters[opponent] = createParticleFilter(opponent, gameState)
+        global updateIndex
+        if updateIndex == -1:
+            updateIndex = self.index
 
   def chooseAction(self, gameState):
     """
@@ -122,7 +125,16 @@ class ReflexCaptureAgent(CaptureAgent):
     bestActions = [a for a, v in zip(actions, values) if v == maxValue]
 
     # Update Particle Filters
-    self.updateFilters(gameState)
+    for opponent in self.opponents:
+        print gameState.getAgentPosition(opponent), gameState.getAgentPosition(self.index)
+        if gameState.getAgentPosition(opponent) == gameState.getAgentPosition(self.index):
+            print 'test'
+            self.filters[opponent].initializeUniformly(gameState)
+
+    global updateIndex
+    if updateIndex == self.index:
+        self.updateFilters(gameState)
+    
 
     return random.choice(bestActions)
 
@@ -185,12 +197,16 @@ class ReflexCaptureAgent(CaptureAgent):
 
     positions = list()
     noisyDistances = gameState.getAgentDistances()
-    if self.index == 1: self.debugClear()
-    #print noisyDistances
+    self.debugClear()
     for opponent in self.opponents:
-        #print 'opponent: ', opponent, 'noise:', noisyDistances[opponent]
+        #print 'self:', self.index, 'opponent: ', opponent, 'noise:', noisyDistances[opponent], 'position:', gameState.getAgentPosition(opponent)
+        enemyPos = gameState.getAgentPosition(opponent)
         self.filters[opponent].observe(noisyDistances[opponent], gameState, self.distancer, self.index)
         self.filters[opponent].elapseTime(gameState, self.index)
+        # check to see if we can observe the agent
+        if enemyPos != None:
+            #print 'test'
+            self.filters[opponent].assignAgentPosition(enemyPos)
         for key, value in self.filters[opponent].getBeliefDistribution().items():
             if value > 0:
                 #positions.append(key)
@@ -407,9 +423,18 @@ class ParticleFilter(InferenceModule):
     """
     return self.particles
 
+  def assignAgentPosition(self, position):
+    """
+    Assign agents position with 100% certainty.
+    """
+    allPossible = util.Counter()
+    allPossible[position] = 1.0
+    self.particles = allPossible
+
 
 # Create a global particle filter that agents can share and update together
 particleFilters = util.Counter()
+updateIndex = -1 # used to only update on this agent
 
 def createParticleFilter(opponentIndex, gameState):
     """
