@@ -9,7 +9,7 @@
 from captureAgents import CaptureAgent
 import random, time, util
 from game import Directions
-import game
+import game, capture
 import distanceCalculator
 from util import nearestPoint
 
@@ -35,6 +35,8 @@ def createTeam(firstIndex, secondIndex, isRed,
   """
 
   # The following line is an example only; feel free to change it.
+  global teamIsRed
+  teamIsRed = isRed
   return [eval(first)(firstIndex), eval(second)(secondIndex)]
 
 ##########
@@ -125,11 +127,13 @@ class ReflexCaptureAgent(CaptureAgent):
     bestActions = [a for a, v in zip(actions, values) if v == maxValue]
 
     # Update Particle Filters
-    for opponent in self.opponents:
-        print gameState.getAgentPosition(opponent), gameState.getAgentPosition(self.index)
-        if gameState.getAgentPosition(opponent) == gameState.getAgentPosition(self.index):
-            print 'test'
-            self.filters[opponent].initializeUniformly(gameState)
+    if self.getPreviousObservation() != None:
+        noisyDistances = gameState.getAgentDistances()
+        prevNoisyDistances = self.getPreviousObservation().getAgentDistances()
+        for opponent in self.opponents:
+            #print noisyDistances[opponent] - prevNoisyDistances[opponent]
+            if noisyDistances[opponent] - prevNoisyDistances[opponent] >= 13:
+                self.filters[opponent].initializeUniformly(gameState)
 
     global updateIndex
     if updateIndex == self.index:
@@ -321,6 +325,15 @@ class InferenceModule:
     We do not know how the enemy agents will act so we say that the agent will move to any
     neighboring position with equal probability.
     """
+    walls = gameState.getWalls()
+    neighbors = game.Actions.getLegalNeighbors(ghostPosition, walls)
+    dist = util.Counter()
+    for n in neighbors:
+        dist[n] = 1.0
+    dist.normalize()
+    return dist
+
+    """
     actionDist = util.Counter()
     for a in ['North', 'South', 'East', 'West', 'Stop']:
         actionDist[a] = 1.0
@@ -330,6 +343,7 @@ class InferenceModule:
       successorPosition = game.Actions.getSuccessor(ghostPosition, action)
       dist[successorPosition] = prob
     return dist
+    """
   
   def setGhostPosition(self, gameState, ghostPosition):
     """
@@ -411,6 +425,7 @@ class ParticleFilter(InferenceModule):
     allPossible = util.Counter()
     for oldPos in self.legalPositions:
         newPosDist = self.getPositionDistribution(self.setGhostPosition(gameState, oldPos))
+        #newPosDist = self.getPositionDist(gameState, oldPos)
         for newPos in newPosDist:
             allPossible[newPos] += newPosDist[newPos] * self.particles[oldPos]
     allPossible.normalize()
@@ -431,10 +446,32 @@ class ParticleFilter(InferenceModule):
     allPossible[position] = 1.0
     self.particles = allPossible
 
+  def reInitializeUniformly(self, gameState, numParticles=300):
+    "Initializes a list of particles only on opponents side."
+    """
+    self.numParticles = numParticles
+    self.particles = util.Counter()
+    list = []
+    global teamIsRed
+    if teamIsRed:
+        print 'yes'
+        # igonore red side positions
+    else:
+        print 'no'
+        list = capture.halfList(self.legalPositions, gameState.data.layout, not teamIsRed)
+        print list
+        # ignore blue side positions
+    for i in range(self.numParticles):
+        position = random.choice(list)
+        self.particles[position] += 1.0
+    """
+    util.raiseNotDefined()
+
 
 # Create a global particle filter that agents can share and update together
 particleFilters = util.Counter()
 updateIndex = -1 # used to only update on this agent
+teamIsRed = False
 
 def createParticleFilter(opponentIndex, gameState):
     """
