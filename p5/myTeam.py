@@ -201,7 +201,7 @@ class ReflexCaptureAgent(CaptureAgent):
 
     positions = list()
     noisyDistances = gameState.getAgentDistances()
-    self.debugClear()
+    # self.debugClear()
     for opponent in self.opponents:
         #print 'self:', self.index, 'opponent: ', opponent, 'noise:', noisyDistances[opponent], 'position:', gameState.getAgentPosition(opponent)
         enemyPos = gameState.getAgentPosition(opponent)
@@ -217,9 +217,10 @@ class ReflexCaptureAgent(CaptureAgent):
                 #print key, value
                 if opponent == 0:
                     positions.append(key)
-                    self.debugDraw(key, [0.5,0,0])
+                    #self.debugDraw(key, [0.5,0,0])
                 else:
-                    self.debugDraw(key, [0,0.5,0])
+                    pass
+                    #self.debugDraw(key, [0,0.5,0])
         #positions.append(self.filters[opponent].getBeliefDistribution().argMax())
     # particle filtering debug
     #self.debugDraw(positions, [0.5,0,0], True);
